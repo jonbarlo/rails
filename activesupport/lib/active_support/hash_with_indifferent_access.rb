@@ -4,6 +4,7 @@ require "active_support/core_ext/hash/keys"
 require "active_support/core_ext/hash/reverse_merge"
 require "active_support/core_ext/hash/except"
 require "active_support/core_ext/hash/slice"
+require "timeout"
 
 module ActiveSupport
   # = \Hash With Indifferent Access
@@ -349,8 +350,21 @@ module ActiveSupport
 
       # Shutdown pool and cache (for testing/cleanup)
       def shutdown
-        HashWithIndifferentAccessPool.shutdown_object_pool
-        HashWithIndifferentAccessCache.shutdown_key_cache
+        puts "Shutting down HashWithIndifferentAccess optimizations..." if ENV['RAILS_ENV'] == 'test'
+        
+        # Shutdown with timeout to prevent hanging
+        begin
+          Timeout.timeout(5) do
+            HashWithIndifferentAccessPool.shutdown_object_pool
+            HashWithIndifferentAccessCache.shutdown_key_cache
+          end
+          puts "Shutdown completed successfully" if ENV['RAILS_ENV'] == 'test'
+        rescue Timeout::Error
+          puts "Shutdown timed out, forcing termination" if ENV['RAILS_ENV'] == 'test'
+          # Force shutdown if timeout occurs
+          HashWithIndifferentAccessPool.shutdown_object_pool rescue nil
+          HashWithIndifferentAccessCache.shutdown_key_cache rescue nil
+        end
       end
     end
 

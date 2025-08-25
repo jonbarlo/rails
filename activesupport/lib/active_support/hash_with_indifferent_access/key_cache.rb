@@ -107,9 +107,18 @@ module ActiveSupport
           @access_count.clear
         end
         
-        if @cleanup_thread
-          @cleanup_thread.join
+        if @cleanup_thread && @cleanup_thread.alive?
+          # Give the thread a short time to respond to shutdown signal
+          @cleanup_thread.join(1.0) # Wait max 1 second
+          
+          # If thread doesn't respond, forcefully terminate it
+          if @cleanup_thread.alive?
+            @cleanup_thread.kill
+            @cleanup_thread.join(0.1) # Brief wait for cleanup
+          end
         end
+        
+        @cleanup_thread = nil
       end
 
       private
@@ -160,7 +169,11 @@ module ActiveSupport
             loop do
               break if @shutdown
               
-              sleep(300) # Run cleanup every 5 minutes
+              # Use shorter sleep intervals for more responsive shutdown
+              sleep_time = @shutdown ? 0.1 : 30
+              sleep(sleep_time)
+              break if @shutdown
+              
               cleanup_old_entries
             end
           end
