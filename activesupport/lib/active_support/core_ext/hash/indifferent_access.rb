@@ -7,7 +7,10 @@ class Hash
   #
   #   { a: 1 }.with_indifferent_access['a'] # => 1
   def with_indifferent_access
-    ActiveSupport::HashWithIndifferentAccess.new(self)
+    # Use object pool to reduce memory allocations
+    ActiveSupport::HashWithIndifferentAccess.object_pool.acquire.tap do |obj|
+      obj.replace(self)
+    end
   end
 
   # Called when object is nested under an object that receives

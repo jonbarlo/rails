@@ -4,6 +4,8 @@ require "active_support/core_ext/hash/keys"
 require "active_support/core_ext/hash/reverse_merge"
 require "active_support/core_ext/hash/except"
 require "active_support/core_ext/hash/slice"
+require_relative "hash_with_indifferent_access/object_pool"
+require_relative "hash_with_indifferent_access/key_cache"
 
 module ActiveSupport
   # = \Hash With Indifferent Access
@@ -60,7 +62,16 @@ module ActiveSupport
     end
 
     def with_indifferent_access
-      dup
+      # Use object pool to reduce memory allocations
+      if self.class == HashWithIndifferentAccess
+        # Already an indifferent access hash, return self
+        self
+      else
+        # Get object from pool or create new one
+        object = self.class.object_pool.acquire
+        object.replace(self)
+        object
+      end
     end
 
     def nested_under_indifferent_access
@@ -281,6 +292,70 @@ module ActiveSupport
       copy_defaults(self.class.new(self))
     end
 
+    # Return this object to the pool for reuse
+    def return_to_pool
+      self.class.object_pool.release(self)
+      nil
+    end
+
+    # Override ObjectSpace finalizer to return objects to pool
+    def self.new(*args)
+      obj = super
+      ObjectSpace.define_finalizer(obj) do |object_id|
+        # Try to return object to pool before garbage collection
+        begin
+          obj.return_to_pool if obj.respond_to?(:return_to_pool)
+        rescue => e
+          # Ignore errors during finalization
+        end
+      end
+      obj
+    end
+
+    # Class methods for pool and cache management
+    class << self
+      # Configure the object pool
+      def configure_pool(pool_size: nil, max_age: nil)
+        ObjectPool.configure_object_pool(pool_size: pool_size, max_age: max_age)
+      end
+
+      # Configure the key cache
+      def configure_cache(cache_size: nil, max_size: nil)
+        KeyCache.configure_key_cache(cache_size: cache_size, max_size: max_size)
+      end
+
+      # Get pool statistics
+      def pool_stats
+        ObjectPool.pool_stats
+      end
+
+      # Get cache statistics
+      def cache_stats
+        KeyCache.key_cache_stats
+      end
+
+      # Warm up the key cache with common keys
+      def warm_up_cache(keys)
+        KeyCache.warm_up_key_cache(keys)
+      end
+
+      # Clear the object pool
+      def clear_pool
+        ObjectPool.clear_object_pool
+      end
+
+      # Clear the key cache
+      def clear_cache
+        KeyCache.clear_key_cache
+      end
+
+      # Shutdown pool and cache (for testing/cleanup)
+      def shutdown
+        ObjectPool.shutdown_object_pool
+        KeyCache.shutdown_key_cache
+      end
+    end
+
     # This method has the same semantics of +update+, except it does not
     # modify the receiver but rather returns a new hash with indifferent
     # access with the result of the merge.
@@ -408,7 +483,12 @@ module ActiveSupport
       end
 
       def convert_key(key)
-        Symbol === key ? key.name : key
+        if Symbol === key
+          # Use key cache to reduce string allocations
+          self.class.key_cache.get_or_create(key)
+        else
+          key
+        end
       end
 
       def convert_value(value, conversion: nil)
