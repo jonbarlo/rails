@@ -3,7 +3,7 @@
 require "thread"
 
 module ActiveSupport
-  module HashWithIndifferentAccess
+  module HashWithIndifferentAccessCache
     # Key cache for HashWithIndifferentAccess to reduce string allocations
     # by caching symbol-to-string conversions and reusing frozen strings.
     class KeyCache

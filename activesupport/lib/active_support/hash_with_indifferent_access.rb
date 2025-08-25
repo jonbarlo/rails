@@ -4,8 +4,6 @@ require "active_support/core_ext/hash/keys"
 require "active_support/core_ext/hash/reverse_merge"
 require "active_support/core_ext/hash/except"
 require "active_support/core_ext/hash/slice"
-require_relative "hash_with_indifferent_access/object_pool"
-require_relative "hash_with_indifferent_access/key_cache"
 
 module ActiveSupport
   # = \Hash With Indifferent Access
@@ -68,7 +66,7 @@ module ActiveSupport
         self
       else
         # Get object from pool or create new one
-        object = self.class.object_pool.acquire
+        object = HashWithIndifferentAccessPool.object_pool.acquire
         object.replace(self)
         object
       end
@@ -294,7 +292,7 @@ module ActiveSupport
 
     # Return this object to the pool for reuse
     def return_to_pool
-      self.class.object_pool.release(self)
+      HashWithIndifferentAccessPool.object_pool.release(self)
       nil
     end
 
@@ -316,43 +314,43 @@ module ActiveSupport
     class << self
       # Configure the object pool
       def configure_pool(pool_size: nil, max_age: nil)
-        ObjectPool.configure_object_pool(pool_size: pool_size, max_age: max_age)
+        HashWithIndifferentAccessPool.configure_object_pool(pool_size: pool_size, max_age: max_age)
       end
 
       # Configure the key cache
       def configure_cache(cache_size: nil, max_size: nil)
-        KeyCache.configure_key_cache(cache_size: cache_size, max_size: max_size)
+        HashWithIndifferentAccessCache.configure_key_cache(cache_size: cache_size, max_size: max_size)
       end
 
       # Get pool statistics
       def pool_stats
-        ObjectPool.pool_stats
+        HashWithIndifferentAccessPool.pool_stats
       end
 
       # Get cache statistics
       def cache_stats
-        KeyCache.key_cache_stats
+        HashWithIndifferentAccessCache.key_cache_stats
       end
 
       # Warm up the key cache with common keys
       def warm_up_cache(keys)
-        KeyCache.warm_up_key_cache(keys)
+        HashWithIndifferentAccessCache.warm_up_key_cache(keys)
       end
 
       # Clear the object pool
       def clear_pool
-        ObjectPool.clear_object_pool
+        HashWithIndifferentAccessPool.clear_object_pool
       end
 
       # Clear the key cache
       def clear_cache
-        KeyCache.clear_key_cache
+        HashWithIndifferentAccessCache.clear_key_cache
       end
 
       # Shutdown pool and cache (for testing/cleanup)
       def shutdown
-        ObjectPool.shutdown_object_pool
-        KeyCache.shutdown_key_cache
+        HashWithIndifferentAccessPool.shutdown_object_pool
+        HashWithIndifferentAccessCache.shutdown_key_cache
       end
     end
 
@@ -485,7 +483,7 @@ module ActiveSupport
       def convert_key(key)
         if Symbol === key
           # Use key cache to reduce string allocations
-          self.class.key_cache.get_or_create(key)
+          HashWithIndifferentAccessCache.key_cache.get_or_create(key)
         else
           key
         end
@@ -542,3 +540,7 @@ end
 # :stopdoc:
 
 HashWithIndifferentAccess = ActiveSupport::HashWithIndifferentAccess
+
+# Load object pool and key cache after class definition
+require_relative "hash_with_indifferent_access/object_pool"
+require_relative "hash_with_indifferent_access/key_cache"

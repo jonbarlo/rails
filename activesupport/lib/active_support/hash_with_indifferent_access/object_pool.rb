@@ -4,7 +4,7 @@ require "thread"
 require "active_support/core_ext/object/blank"
 
 module ActiveSupport
-  module HashWithIndifferentAccess
+  module HashWithIndifferentAccessPool
     # Object pool for HashWithIndifferentAccess instances to reduce memory allocations
     # and improve performance by reusing objects instead of creating new ones.
     class ObjectPool
