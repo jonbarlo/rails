@@ -35,9 +35,13 @@ module ActiveSupport
         synchronize do
           if @pool.empty?
             # Create a new object if pool is empty
+            @objects_created ||= 0
+            @objects_created += 1
             ActiveSupport::HashWithIndifferentAccess.new
           else
             # Reuse an existing object from the pool
+            @objects_reused ||= 0
+            @objects_reused += 1
             @pool.pop
           end
         end
@@ -73,6 +77,10 @@ module ActiveSupport
 
       # Resize the pool
       def resize(new_size)
+        if new_size < 1
+          raise ArgumentError, "Pool size must be at least 1, got #{new_size}"
+        end
+        
         new_size = [new_size, MIN_POOL_SIZE].max
         
         synchronize do

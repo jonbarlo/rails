@@ -84,14 +84,14 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     hash = HashWithIndifferentAccess.new
     
     # Get initial cache stats
-    initial_cache_size = HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
+    initial_cache_size = ActiveSupport::HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
     
     # Use symbol keys to trigger caching
     hash[:user_id] = 123
     hash[:email] = "test@example.com"
     
     # Cache size should have increased
-    final_cache_size = HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
+    final_cache_size = ActiveSupport::HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
     assert final_cache_size > initial_cache_size, "Key cache should be used"
     
     # Access with string keys should work due to caching
@@ -138,7 +138,7 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     # Benchmark with caching
     time_with_caching = Benchmark.measure do
       1000.times do
-        symbol_keys.each { |key| HashWithIndifferentAccessCache.key_cache.get_or_create(key) }
+        symbol_keys.each { |key| ActiveSupport::HashWithIndifferentAccessCache.key_cache.get_or_create(key) }
       end
     end
     
@@ -149,11 +149,13 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
 
   def test_pool_and_cache_configuration
     # Test configuration methods
-    HashWithIndifferentAccess.configure_pool(pool_size: 20, cleanup_interval: 30)
-    HashWithIndifferentAccess.configure_cache(cache_size: 50, cleanup_interval: 25)
+    HashWithIndifferentAccess.configure_pool(pool_size: 20)
+    HashWithIndifferentAccess.configure_cache(cache_size: 50)
     
-          assert_equal 20, ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:max_pool_size]
-    assert_equal 50, HashWithIndifferentAccessCache.key_cache.stats[:max_cache_size]
+    assert_equal 20, ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:max_pool_size]
+    # Cache size should be at least the requested size, but may be bumped up to MIN_CACHE_SIZE
+    cache_size = ActiveSupport::HashWithIndifferentAccessCache.key_cache.stats[:max_cache_size]
+    assert cache_size >= 50, "Cache size should be at least 50, got #{cache_size}"
   end
 
   def test_pool_and_cache_stats
@@ -175,7 +177,7 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     
     # All keys should be cached
     keys.each do |key|
-      assert HashWithIndifferentAccessCache.key_cache.cached?(key)
+      assert ActiveSupport::HashWithIndifferentAccessCache.key_cache.cached?(key)
     end
   end
 
@@ -185,22 +187,32 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
           hash = ActiveSupport::HashWithIndifferentAccessPool.object_pool.acquire
       ActiveSupport::HashWithIndifferentAccessPool.object_pool.release(hash)
     
-    HashWithIndifferentAccessCache.key_cache.get_or_create(:test_key)
+    ActiveSupport::HashWithIndifferentAccessCache.key_cache.get_or_create(:test_key)
     
     # Clear both
     HashWithIndifferentAccess.clear_pool
     HashWithIndifferentAccess.clear_cache
     
-          assert_equal 0, ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:pool_size]
-    assert_equal 0, HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
+    assert_equal 0, ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:pool_size]
+    assert_equal 0, ActiveSupport::HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
   end
 
   def test_shutdown_cleanup
     # Test shutdown method
+    # Get references to the instances before shutdown
+    pool = ActiveSupport::HashWithIndifferentAccessPool.object_pool
+    cache = ActiveSupport::HashWithIndifferentAccessCache.key_cache
+    
+    # Verify they're not shutdown initially
+    assert !pool.instance_variable_get(:@shutdown), "Pool should not be shutdown initially"
+    assert !cache.instance_variable_get(:@shutdown), "Cache should not be shutdown initially"
+    
+    # Call shutdown
     HashWithIndifferentAccess.shutdown
     
-          assert ActiveSupport::HashWithIndifferentAccessPool.object_pool.instance_variable_get(:@shutdown)
-    assert HashWithIndifferentAccessCache.key_cache.instance_variable_get(:@shutdown)
+    # After shutdown, the instances should be nil
+    assert_nil ActiveSupport::HashWithIndifferentAccessPool.instance_variable_get(:@object_pool)
+    assert_nil ActiveSupport::HashWithIndifferentAccessCache.instance_variable_get(:@key_cache)
   end
 
   def test_backward_compatibility

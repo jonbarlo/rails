@@ -71,6 +71,10 @@ module ActiveSupport
 
       # Resize the cache
       def resize(new_size)
+        if new_size < 1
+          raise ArgumentError, "Cache size must be at least 1, got #{new_size}"
+        end
+        
         new_size = [new_size, MIN_CACHE_SIZE].max
         
         synchronize do

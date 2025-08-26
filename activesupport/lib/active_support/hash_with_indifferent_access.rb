@@ -6,6 +6,10 @@ require "active_support/core_ext/hash/except"
 require "active_support/core_ext/hash/slice"
 require "timeout"
 
+# Load object pool and key cache before class definition
+require "active_support/hash_with_indifferent_access/object_pool"
+require "active_support/hash_with_indifferent_access/key_cache"
+
 module ActiveSupport
   # = \Hash With Indifferent Access
   #
@@ -62,15 +66,10 @@ module ActiveSupport
 
     def with_indifferent_access
       # Use object pool to reduce memory allocations
-      if self.class == HashWithIndifferentAccess
-        # Already an indifferent access hash, return self
-        self
-      else
-        # Get object from pool or create new one
-        object = HashWithIndifferentAccessPool.object_pool.acquire
-        object.replace(self)
-        object
-      end
+      # Always return a new object to maintain backward compatibility
+      object = HashWithIndifferentAccessPool.object_pool.acquire
+      object.replace(self)
+      object
     end
 
     def nested_under_indifferent_access
@@ -304,7 +303,7 @@ module ActiveSupport
         # Try to return object to pool before garbage collection
         begin
           obj.return_to_pool if obj.respond_to?(:return_to_pool)
-        rescue => e
+        rescue
           # Ignore errors during finalization
         end
       end
@@ -554,7 +553,3 @@ end
 # :stopdoc:
 
 HashWithIndifferentAccess = ActiveSupport::HashWithIndifferentAccess
-
-# Load object pool and key cache after class definition
-require_relative "hash_with_indifferent_access/object_pool"
-require_relative "hash_with_indifferent_access/key_cache"
