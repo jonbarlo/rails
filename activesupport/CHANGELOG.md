@@ -1,3 +1,23 @@
+*   Add performance optimizations to `HashWithIndifferentAccess` with object pooling and key caching.
+
+    This change introduces two optimizations to improve performance and prevent memory leaks:
+
+    **Object Pooling**: Reuses `HashWithIndifferentAccess` instances to reduce memory allocations.
+    **Key Caching**: Caches symbol-to-string conversions to reduce string allocations.
+
+    Changes include:
+    - Configurable pool and cache sizes via environment variables
+    - Proper cleanup and shutdown to prevent memory leaks
+    - Thread-safe implementation with MonitorMixin
+
+    Configuration:
+    ```bash
+    RAILS_HASH_POOL_SIZE=100        # Object pool size (default: 100)
+    RAILS_HASH_KEY_CACHE_SIZE=1000  # Key cache size (default: 1000)
+    ```
+
+    *Jonathan Barquero*
+
 *   Add `assert_events_reported` test helper for `ActiveSupport::EventReporter`.
 
     This new assertion allows testing multiple events in a single block, regardless of order:
