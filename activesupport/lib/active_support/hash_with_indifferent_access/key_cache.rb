@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "thread"
 
 module ActiveSupport
   module HashWithIndifferentAccessCache
@@ -26,18 +25,18 @@ module ActiveSupport
         @access_count = {}
         @cleanup_thread = nil
         @shutdown = false
-        
+
         start_cleanup_thread
       end
 
       # Get or create a cached string for a symbol key
       def get_or_create(symbol_key)
         return symbol_key unless symbol_key.is_a?(Symbol)
-        
+
         # Check cache first
         cached_string = cache_get(symbol_key)
         return cached_string if cached_string
-        
+
         # Create new frozen string and cache it
         new_string = symbol_key.name.freeze
         cache_set(symbol_key, new_string)
@@ -74,13 +73,13 @@ module ActiveSupport
         if new_size < 1
           raise ArgumentError, "Cache size must be at least 1, got #{new_size}"
         end
-        
+
         new_size = [new_size, MIN_CACHE_SIZE].max
-        
+
         synchronize do
           old_size = @cache_size
           @cache_size = new_size
-          
+
           # Trim cache if new size is smaller
           if new_size < old_size
             trim_cache(new_size)
@@ -110,23 +109,22 @@ module ActiveSupport
           @cache.clear
           @access_count.clear
         end
-        
+
         if @cleanup_thread && @cleanup_thread.alive?
           # Give the thread a short time to respond to shutdown signal
           @cleanup_thread.join(1.0) # Wait max 1 second
-          
+
           # If thread doesn't respond, forcefully terminate it
           if @cleanup_thread.alive?
             @cleanup_thread.kill
             @cleanup_thread.join(0.1) # Brief wait for cleanup
           end
         end
-        
+
         @cleanup_thread = nil
       end
 
       private
-
         def cache_get(symbol_key)
           synchronize do
             if @cache.key?(symbol_key)
@@ -143,7 +141,7 @@ module ActiveSupport
             if @cache.size >= @cache_size
               trim_cache(@cache_size - 1)
             end
-            
+
             @cache[symbol_key] = string_value
             @access_count[symbol_key] = 1
           end
@@ -157,11 +155,11 @@ module ActiveSupport
 
         def trim_cache(target_size)
           return if @cache.size <= target_size
-          
+
           # Remove least accessed keys
           keys_to_remove = @cache.size - target_size
           sorted_keys = @access_count.sort_by { |_, count| count }.first(keys_to_remove)
-          
+
           sorted_keys.each do |key, _|
             @cache.delete(key)
             @access_count.delete(key)
@@ -172,16 +170,16 @@ module ActiveSupport
           @cleanup_thread = Thread.new do
             loop do
               break if @shutdown
-              
+
               # Use shorter sleep intervals for more responsive shutdown
               sleep_time = @shutdown ? 0.1 : 30
               sleep(sleep_time)
               break if @shutdown
-              
+
               cleanup_old_entries
             end
           end
-          
+
           @cleanup_thread.abort_on_exception = true
         end
 
@@ -189,7 +187,7 @@ module ActiveSupport
           synchronize do
             @cleanup_runs ||= 0
             @cleanup_runs += 1
-            
+
             # Remove keys that haven't been accessed recently
             if @cache.size > MIN_CACHE_SIZE
               # Keep only the most frequently accessed keys
@@ -223,11 +221,11 @@ module ActiveSupport
       # Configure the global key cache
       def configure_key_cache(cache_size: nil, max_size: nil)
         cache = key_cache
-        
+
         if cache_size
           cache.resize(cache_size)
         end
-        
+
         cache
       end
 

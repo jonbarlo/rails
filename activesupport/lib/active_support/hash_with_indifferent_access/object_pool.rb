@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "thread"
 require "active_support/core_ext/object/blank"
 
 module ActiveSupport
@@ -26,7 +25,7 @@ module ActiveSupport
         @pool_mutex = Mutex.new
         @cleanup_thread = nil
         @shutdown = false
-        
+
         start_cleanup_thread
       end
 
@@ -50,10 +49,10 @@ module ActiveSupport
       # Return an object to the pool for reuse
       def release(object)
         return unless object.is_a?(ActiveSupport::HashWithIndifferentAccess)
-        
+
         # Clear the object's contents before returning to pool
         object.clear
-        
+
         synchronize do
           if @pool.size < @pool_size
             @pool << object
@@ -80,13 +79,13 @@ module ActiveSupport
         if new_size < 1
           raise ArgumentError, "Pool size must be at least 1, got #{new_size}"
         end
-        
+
         new_size = [new_size, MIN_POOL_SIZE].max
-        
+
         synchronize do
           old_size = @pool_size
           @pool_size = new_size
-          
+
           # Trim pool if new size is smaller
           if new_size < old_size
             @pool = @pool.first(new_size)
@@ -108,37 +107,36 @@ module ActiveSupport
           @shutdown = true
           @pool.clear
         end
-        
+
         if @cleanup_thread && @cleanup_thread.alive?
           # Give the thread a short time to respond to shutdown signal
           @cleanup_thread.join(1.0) # Wait max 1 second
-          
+
           # If thread doesn't respond, forcefully terminate it
           if @cleanup_thread.alive?
             @cleanup_thread.kill
             @cleanup_thread.join(0.1) # Brief wait for cleanup
           end
         end
-        
+
         @cleanup_thread = nil
       end
 
       private
-
         def start_cleanup_thread
           @cleanup_thread = Thread.new do
             loop do
               break if @shutdown
-              
+
               # Use shorter sleep intervals for more responsive shutdown
               sleep_time = @shutdown ? 0.1 : 10
               sleep(sleep_time)
               break if @shutdown
-              
+
               cleanup_old_objects
             end
           end
-          
+
           @cleanup_thread.abort_on_exception = true
         end
 
@@ -146,7 +144,7 @@ module ActiveSupport
           synchronize do
             @cleanup_runs ||= 0
             @cleanup_runs += 1
-            
+
             # Keep only the most recently used objects
             if @pool.size > MIN_POOL_SIZE
               @pool = @pool.last(MIN_POOL_SIZE)
@@ -178,11 +176,11 @@ module ActiveSupport
       # Configure the global object pool
       def configure_object_pool(pool_size: nil, max_age: nil)
         pool = object_pool
-        
+
         if pool_size
           pool.resize(pool_size)
         end
-        
+
         pool
       end
 

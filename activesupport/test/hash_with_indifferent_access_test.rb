@@ -62,38 +62,38 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
   def test_with_indifferent_access_uses_object_pool
     # Test that with_indifferent_access uses the object pool
     hash = { user_id: 123, name: "John" }
-    
-          # Get initial pool stats
-      initial_pool_size = ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:pool_size]
-    
+
+    # Get initial pool stats
+    initial_pool_size = ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:pool_size]
+
     # Create indifferent access hash
     indifferent_hash = hash.with_indifferent_access
-    
+
     # Should be using pooled object
     assert_instance_of HashWithIndifferentAccess, indifferent_hash
     assert_equal 123, indifferent_hash[:user_id]
     assert_equal "John", indifferent_hash[:name]
-    
-          # Pool size should not have increased significantly (objects are returned)
-      final_pool_size = ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:pool_size]
+
+    # Pool size should not have increased significantly (objects are returned)
+    final_pool_size = ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:pool_size]
     assert final_pool_size <= initial_pool_size + 1, "Pool size should not grow excessively"
   end
 
   def test_key_conversion_uses_cache
     # Test that key conversion uses the key cache
     hash = HashWithIndifferentAccess.new
-    
+
     # Get initial cache stats
     initial_cache_size = ActiveSupport::HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
-    
+
     # Use symbol keys to trigger caching
     hash[:user_id] = 123
     hash[:email] = "test@example.com"
-    
+
     # Cache size should have increased
     final_cache_size = ActiveSupport::HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
     assert final_cache_size > initial_cache_size, "Key cache should be used"
-    
+
     # Access with string keys should work due to caching
     assert_equal 123, hash["user_id"]
     assert_equal "test@example.com", hash["email"]
@@ -102,14 +102,14 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
   def test_object_pooling_improves_performance
     # Test that object pooling provides performance benefits
     test_data = { id: 1, name: "Test", value: "Value" }
-    
+
     # Benchmark without pooling (traditional approach)
-    time_without_pooling = Benchmark.measure do
+    Benchmark.measure do
       100.times do
         HashWithIndifferentAccess.new(test_data)
       end
     end
-    
+
     # Benchmark with pooling
     time_with_pooling = Benchmark.measure do
       100.times do
@@ -118,7 +118,7 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
         ActiveSupport::HashWithIndifferentAccessPool.object_pool.release(hash)
       end
     end
-    
+
     # Pooling should be faster (though in tests the difference might be small)
     # We're mainly testing that the optimization path works
     assert time_with_pooling.total >= 0, "Pooling should complete successfully"
@@ -127,21 +127,21 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
   def test_key_caching_improves_performance
     # Test that key caching provides performance benefits
     symbol_keys = [:user_id, :post_title, :comment_body, :created_at, :updated_at]
-    
+
     # Benchmark without caching
-    time_without_caching = Benchmark.measure do
+    Benchmark.measure do
       1000.times do
         symbol_keys.each { |key| key.name }
       end
     end
-    
+
     # Benchmark with caching
     time_with_caching = Benchmark.measure do
       1000.times do
         symbol_keys.each { |key| ActiveSupport::HashWithIndifferentAccessCache.key_cache.get_or_create(key) }
       end
     end
-    
+
     # Caching should be faster (though in tests the difference might be small)
     # We're mainly testing that the optimization path works
     assert time_with_caching.total >= 0, "Key caching should complete successfully"
@@ -151,7 +151,7 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     # Test configuration methods
     HashWithIndifferentAccess.configure_pool(pool_size: 20)
     HashWithIndifferentAccess.configure_cache(cache_size: 50)
-    
+
     assert_equal 20, ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:max_pool_size]
     # Cache size should be at least the requested size, but may be bumped up to MIN_CACHE_SIZE
     cache_size = ActiveSupport::HashWithIndifferentAccessCache.key_cache.stats[:max_cache_size]
@@ -162,7 +162,7 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     # Test stats methods
     pool_stats = HashWithIndifferentAccess.pool_stats
     cache_stats = HashWithIndifferentAccess.cache_stats
-    
+
     assert_includes pool_stats.keys, :pool_size
     assert_includes pool_stats.keys, :max_pool_size
     assert_includes cache_stats.keys, :cache_size
@@ -172,9 +172,9 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
   def test_warm_up_cache
     # Test cache warming
     keys = [:user, :email, :password, :created_at, :updated_at]
-    
+
     HashWithIndifferentAccess.warm_up_cache(keys)
-    
+
     # All keys should be cached
     keys.each do |key|
       assert ActiveSupport::HashWithIndifferentAccessCache.key_cache.cached?(key)
@@ -184,15 +184,15 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
   def test_clear_pool_and_cache
     # Test clearing methods
     # First add some objects to pool and cache
-          hash = ActiveSupport::HashWithIndifferentAccessPool.object_pool.acquire
-      ActiveSupport::HashWithIndifferentAccessPool.object_pool.release(hash)
-    
+    hash = ActiveSupport::HashWithIndifferentAccessPool.object_pool.acquire
+    ActiveSupport::HashWithIndifferentAccessPool.object_pool.release(hash)
+
     ActiveSupport::HashWithIndifferentAccessCache.key_cache.get_or_create(:test_key)
-    
+
     # Clear both
     HashWithIndifferentAccess.clear_pool
     HashWithIndifferentAccess.clear_cache
-    
+
     assert_equal 0, ActiveSupport::HashWithIndifferentAccessPool.object_pool.stats[:pool_size]
     assert_equal 0, ActiveSupport::HashWithIndifferentAccessCache.key_cache.stats[:cache_size]
   end
@@ -202,14 +202,14 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     # Get references to the instances before shutdown
     pool = ActiveSupport::HashWithIndifferentAccessPool.object_pool
     cache = ActiveSupport::HashWithIndifferentAccessCache.key_cache
-    
+
     # Verify they're not shutdown initially
-    assert !pool.instance_variable_get(:@shutdown), "Pool should not be shutdown initially"
-    assert !cache.instance_variable_get(:@shutdown), "Cache should not be shutdown initially"
-    
+    assert_not pool.instance_variable_get(:@shutdown), "Pool should not be shutdown initially"
+    assert_not cache.instance_variable_get(:@shutdown), "Cache should not be shutdown initially"
+
     # Call shutdown
     HashWithIndifferentAccess.shutdown
-    
+
     # After shutdown, the instances should be nil
     assert_nil ActiveSupport::HashWithIndifferentAccessPool.instance_variable_get(:@object_pool)
     assert_nil ActiveSupport::HashWithIndifferentAccessCache.instance_variable_get(:@key_cache)
@@ -220,7 +220,7 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     hash = HashWithIndifferentAccess.new
     hash[:user_id] = 123
     hash["email"] = "test@example.com"
-    
+
     assert_equal 123, hash[:user_id]
     assert_equal 123, hash["user_id"]
     assert_equal "test@example.com", hash[:email]
@@ -231,23 +231,23 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     # Test that the integrated optimizations are thread-safe
     threads = []
     results = []
-    
+
     5.times do |i|
       threads << Thread.new do
         # Use the optimizations
         hash = HashWithIndifferentAccess.new
         hash["key_#{i}".to_sym] = "value_#{i}"
-        
+
         indifferent_hash = hash.with_indifferent_access
         results << [i, indifferent_hash["key_#{i}".to_sym]]
       end
     end
-    
+
     threads.each(&:join)
-    
+
     # All threads should complete successfully
     assert_equal 5, results.length
-    
+
     # Check that results are correct
     results.each do |thread_id, value|
       assert_equal "value_#{thread_id}", value
@@ -257,21 +257,21 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
   def test_memory_efficiency
     # Test that optimizations reduce memory pressure
     initial_gc_count = GC.count
-    
+
     # Create many objects using optimizations
     100.times do
       hash = HashWithIndifferentAccess.new
       hash[:user_id] = 123
       hash[:name] = "John"
-      
+
       indifferent_hash = hash.with_indifferent_access
       indifferent_hash[:extra] = "value"
     end
-    
+
     # Force GC
     GC.start
     final_gc_count = GC.count
-    
+
     # Should not have excessive GC pressure
     gc_runs = final_gc_count - initial_gc_count
     assert gc_runs <= 5, "Should not have excessive GC pressure"
@@ -283,7 +283,7 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     assert_raises(ArgumentError) do
       HashWithIndifferentAccess.configure_pool(pool_size: -1)
     end
-    
+
     # Test with invalid cache size
     assert_raises(ArgumentError) do
       HashWithIndifferentAccess.configure_cache(cache_size: 0)
@@ -295,16 +295,16 @@ class HashWithIndifferentAccessTest < ActiveSupport::TestCase
     # Empty hash
     empty_hash = HashWithIndifferentAccess.new
     assert_empty empty_hash
-    
+
     # Hash with nil values
     nil_hash = HashWithIndifferentAccess.new
     nil_hash[:nil_key] = nil
     assert_nil nil_hash[:nil_key]
     assert_nil nil_hash["nil_key"]
-    
+
     # Hash with frozen keys
     frozen_hash = HashWithIndifferentAccess.new
-    frozen_key = "frozen_key".freeze
+    frozen_key = "frozen_key"
     frozen_hash[frozen_key] = "value"
     assert_equal "value", frozen_hash[frozen_key]
   end

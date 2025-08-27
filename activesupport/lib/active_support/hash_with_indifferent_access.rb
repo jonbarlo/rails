@@ -301,11 +301,10 @@ module ActiveSupport
       obj = super
       ObjectSpace.define_finalizer(obj) do |object_id|
         # Try to return object to pool before garbage collection
-        begin
-          obj.return_to_pool if obj.respond_to?(:return_to_pool)
-        rescue
-          # Ignore errors during finalization
-        end
+
+        obj.return_to_pool if obj.respond_to?(:return_to_pool)
+      rescue
+        # Ignore errors during finalization
       end
       obj
     end
@@ -349,17 +348,17 @@ module ActiveSupport
 
       # Shutdown pool and cache (for testing/cleanup)
       def shutdown
-        puts "Shutting down HashWithIndifferentAccess optimizations..." if ENV['RAILS_ENV'] == 'test'
-        
+        puts "Shutting down HashWithIndifferentAccess optimizations..." if ENV["RAILS_ENV"] == "test"
+
         # Shutdown with timeout to prevent hanging
         begin
           Timeout.timeout(5) do
             HashWithIndifferentAccessPool.shutdown_object_pool
             HashWithIndifferentAccessCache.shutdown_key_cache
           end
-          puts "Shutdown completed successfully" if ENV['RAILS_ENV'] == 'test'
+          puts "Shutdown completed successfully" if ENV["RAILS_ENV"] == "test"
         rescue Timeout::Error
-          puts "Shutdown timed out, forcing termination" if ENV['RAILS_ENV'] == 'test'
+          puts "Shutdown timed out, forcing termination" if ENV["RAILS_ENV"] == "test"
           # Force shutdown if timeout occurs
           HashWithIndifferentAccessPool.shutdown_object_pool rescue nil
           HashWithIndifferentAccessCache.shutdown_key_cache rescue nil
